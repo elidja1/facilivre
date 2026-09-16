@@ -1,0 +1,4 @@
+{
+  "extends": "@facilivre/tsconfig/react-library.json",
+  "include": ["src/**/*"]
+}

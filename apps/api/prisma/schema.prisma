@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRoleType {
+  STUDENT
+  CREATOR
+  TEACHER
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  DEACTIVATED
+}
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  username      String      @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  avatarUrl     String?
+  bio           String?
+  status        UserStatus  @default(PENDING)
+  emailVerified Boolean     @default(false)
+  roles         UserRole[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        UserRoleType     @unique
+  description String?
+  users       UserRole[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  action      String
+  subject     String
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([action, subject])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "@facilivre/tsconfig/nestjs.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "paths": {
+      "@config/*": ["src/config/*"],
+      "@common/*": ["src/common/*"],
+      "@database/*": ["src/database/*"],
+      "@modules/*": ["src/modules/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}
