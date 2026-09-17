@@ -29,6 +29,10 @@ import {
   Layers,
   LogOut,
   Terminal,
+  Info,
+  Key,
+  Globe,
+  HelpCircle,
 } from 'lucide-react';
 
 interface SupabaseStatus {
@@ -48,8 +52,13 @@ export default function AdminHomePage() {
   const [error, setError] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
-  // Supabase Configuration Form state
+  // Full Supabase configuration state
   const [customDbUrl, setCustomDbUrl] = useState('');
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
+  const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
+
   const [testingDb, setTestingDb] = useState(false);
   const [testResult, setTestResult] = useState<{
     success?: boolean;
@@ -65,12 +74,10 @@ export default function AdminHomePage() {
       setHealth(data);
       setLastChecked(new Date());
 
-      // Fetch detailed DB status
       try {
         const dbRes = await apiClient.get<SupabaseStatus>('/api/v1/admin/database/status');
         setDbStatus(dbRes);
       } catch {
-        // fallback to health database payload
         setDbStatus((data as any)?.database || null);
       }
     } catch (err: any) {
@@ -90,7 +97,7 @@ export default function AdminHomePage() {
 
   const handleTestConnection = async () => {
     if (!customDbUrl) {
-      alert('Veuillez saisir une URL de connexion PostgreSQL / Supabase.');
+      alert('Veuillez saisir l\'URI de connexion PostgreSQL Supabase (DATABASE_URL) pour tester la base.');
       return;
     }
     setTestingDb(true);
@@ -98,17 +105,20 @@ export default function AdminHomePage() {
     try {
       const res = await apiClient.post<SupabaseStatus>('/api/v1/admin/database/test', {
         databaseUrl: customDbUrl,
+        supabaseUrl,
+        supabaseAnonKey,
+        supabaseServiceRoleKey: supabaseServiceKey,
       });
       if (res.status === 'connected') {
         setTestResult({
           success: true,
-          message: `Connexion Supabase réussie en ${res.latencyMs}ms ! (${res.tablesCount} tables détectées)`,
+          message: `Connexion Supabase PostgreSQL réussie en ${res.latencyMs}ms ! (${res.tablesCount} tables existantes dans le schéma)`,
           details: res,
         });
       } else {
         setTestResult({
           success: false,
-          message: `Échec de connexion : ${res.error || 'Identifiants ou réseau incorrects'}`,
+          message: `Échec de connexion : ${res.error || 'Vérifiez le mot de passe ou le host'}.`,
           details: res,
         });
       }
@@ -123,14 +133,20 @@ export default function AdminHomePage() {
   };
 
   const handleSaveConnection = async () => {
-    if (!customDbUrl) return;
+    if (!customDbUrl && !supabaseUrl && !supabaseAnonKey) {
+      alert('Veuillez renseigner au moins une clé Supabase avant d\'enregistrer.');
+      return;
+    }
     setTestingDb(true);
     try {
       const res = await apiClient.post<any>('/api/v1/admin/database/save', {
         databaseUrl: customDbUrl,
+        supabaseUrl,
+        supabaseAnonKey,
+        supabaseServiceRoleKey: supabaseServiceKey,
       });
       if (res.success) {
-        alert('Configuration Supabase enregistrée avec succès !');
+        alert('Toutes les clés Supabase ont été enregistrées avec succès !');
         fetchHealth();
       } else {
         alert(res.message || 'Impossible d\'enregistrer la configuration.');
@@ -213,7 +229,7 @@ export default function AdminHomePage() {
               Panneau de Contrôle SuperAdmin
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-              Supervision de l&apos;API NestJS, gestion de la base Supabase PostgreSQL et exécution des migrations.
+              Supervision de l&apos;API NestJS, configuration des clés Supabase et exécution des migrations.
             </p>
           </div>
 
@@ -223,7 +239,7 @@ export default function AdminHomePage() {
           </div>
         </section>
 
-        {/* ── SUPABASE & POSTGRESQL CONNECTION HUB ───────────────────────── */}
+        {/* ── SUPABASE & POSTGRESQL CONFIGURATION HUB ────────────────────── */}
         <section className="bg-zinc-900/70 border border-indigo-500/30 rounded-2xl p-6 sm:p-8 backdrop-blur-xl shadow-xl shadow-black/40 space-y-6 relative overflow-hidden">
           {/* Subtle top glow */}
           <div className="absolute top-0 right-0 w-80 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -237,20 +253,29 @@ export default function AdminHomePage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-black text-white">
-                    Connexion Supabase &amp; Migrations PostgreSQL
+                    Configuration des Clés &amp; Base Supabase
                   </h2>
                   <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    Prisma ORM
+                    Prisma + Supabase API
                   </span>
                 </div>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Connecte ton projet Supabase et teste la réactivité de la base en direct.
+                  Renseigne ici tes clés de projet Supabase (PostgreSQL URI, Project URL, Anon Key, Service Key).
                 </p>
               </div>
             </div>
 
-            {/* Current status pill */}
+            {/* Toggle guide button & Status pill */}
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowHelp(!showHelp)}
+                className="px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-xs font-bold text-zinc-300 flex items-center gap-1.5 transition-colors"
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-indigo-400" />
+                <span>{showHelp ? 'Masquer le guide' : 'Où trouver mes clés ?'}</span>
+              </button>
+
               <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
                 dbStatus?.status === 'connected'
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
@@ -263,21 +288,53 @@ export default function AdminHomePage() {
                 }`} />
                 <span>
                   {dbStatus?.status === 'connected'
-                    ? `Supabase Connecté (${dbStatus.latencyMs}ms)`
+                    ? `Connecté (${dbStatus.latencyMs}ms)`
                     : dbStatus?.status === 'awaiting_configuration'
-                    ? 'En attente de connexion'
+                    ? 'Configuration requise'
                     : 'Déconnecté'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Supabase Connection Details Grid */}
+          {/* Collapsible Supabase Guide */}
+          {showHelp && (
+            <div className="p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-3 text-xs text-indigo-200 animate-in fade-in duration-300">
+              <div className="flex items-center gap-2 font-bold text-white text-sm">
+                <Info className="h-4 w-4 text-indigo-400" />
+                <span>Guide : Comment récupérer tes clés sur Supabase.com (en 2 clics)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-zinc-300">
+                <div className="bg-zinc-950/80 p-3 rounded-lg border border-indigo-500/20 space-y-1">
+                  <p className="font-bold text-indigo-300">1. Pour la DATABASE_URL (URI PostgreSQL) :</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Sur ton dashboard Supabase ➔ Clique sur l&apos;icône ⚙️ <strong>Project Settings</strong> ➔ <strong>Database</strong> ➔ Descends jusqu&apos;à <strong>Connection string</strong> ➔ Sélectionne l&apos;onglet <strong>URI</strong> (mode Transaction ou Session).
+                  </p>
+                  <p className="font-mono text-[10px] text-zinc-400 bg-zinc-900 p-1.5 rounded">
+                    postgresql://postgres.[ref]:[mdp]@aws-0-[region].pooler.supabase.com:6543/postgres
+                  </p>
+                </div>
+                <div className="bg-zinc-950/80 p-3 rounded-lg border border-indigo-500/20 space-y-1">
+                  <p className="font-bold text-indigo-300">2. Pour le Project URL &amp; Clés Anon / Service :</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Sur ton dashboard Supabase ➔ Clique sur ⚙️ <strong>Project Settings</strong> ➔ <strong>API</strong> ➔ Tu trouveras :
+                  </p>
+                  <ul className="list-disc list-inside text-[11px] text-zinc-400 space-y-0.5">
+                    <li><strong>Project URL :</strong> <code>https://xxxxxxxx.supabase.co</code></li>
+                    <li><strong>anon (public) :</strong> <code>eyJhbGciOi...</code></li>
+                    <li><strong>service_role (secret) :</strong> <code>eyJhbGciOi...</code></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Current Supabase Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 rounded-xl bg-zinc-950/70 border border-zinc-800 space-y-1">
-              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">État Supabase</span>
+              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">État Connexion PostgreSQL</span>
               <div className="text-sm font-bold text-zinc-200 capitalize">
-                {dbStatus?.status === 'connected' ? '✅ En ligne & Prêt' : '⚠️ Configuration requise'}
+                {dbStatus?.status === 'connected' ? '✅ En ligne & Opérationnel' : '⚠️ Clés en attente'}
               </div>
               <p className="text-[11px] text-zinc-500 font-mono truncate">
                 {dbStatus?.databaseUrlMasked || 'Non défini'}
@@ -300,45 +357,109 @@ export default function AdminHomePage() {
                 {dbStatus?.postgresVersion ? dbStatus.postgresVersion.slice(0, 25) + '…' : 'PostgreSQL 15 / Supabase'}
               </div>
               <p className="text-[11px] text-zinc-500">
-                SSL / Transaction Mode activé
+                Pooler Transaction 6543 / Direct 5432
               </p>
             </div>
           </div>
 
-          {/* Supabase Input Form */}
+          {/* 4 Keys Form */}
           <div className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
-                <span>URL de Connexion PostgreSQL Supabase (DATABASE_URL) :</span>
-                <span className="text-zinc-500 font-normal">Format: postgresql://postgres.[ref]:[mdp]@aws-0-[region].pooler.supabase.com:6543/postgres</span>
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Key className="h-4 w-4 text-indigo-400" />
+              <span>Champs de Configuration Supabase :</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 1. DATABASE_URL */}
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                  <span>1. URL de Connexion PostgreSQL (DATABASE_URL) <span className="text-indigo-400">*Requis pour Prisma &amp; Migrations</span></span>
+                  <span className="text-zinc-500 text-[11px]">Settings ➔ Database ➔ URI</span>
+                </label>
                 <input
                   type="password"
                   value={customDbUrl}
                   onChange={(e) => setCustomDbUrl(e.target.value)}
-                  placeholder="postgresql://postgres.your-project:your-password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-                  className="flex-1 px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white placeholder:text-zinc-600 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
+                  placeholder="postgresql://postgres.xxxx:your_password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+                  className="w-full px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white placeholder:text-zinc-600 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
                 />
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={testingDb}
-                  className="px-5 py-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-60 shrink-0"
-                >
-                  {testingDb ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                  Tester la Connexion
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveConnection}
-                  disabled={testingDb}
-                  className="px-5 py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-60 shrink-0"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Enregistrer
-                </button>
               </div>
+
+              {/* 2. NEXT_PUBLIC_SUPABASE_URL */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                  <span>2. Supabase Project URL</span>
+                  <span className="text-zinc-500 text-[11px]">Settings ➔ API</span>
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    placeholder="https://xxxxxxxxxxxx.supabase.co"
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-950 text-white placeholder:text-zinc-600 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* 3. NEXT_PUBLIC_SUPABASE_ANON_KEY */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                  <span>3. Supabase Anon Key (Public)</span>
+                  <span className="text-zinc-500 text-[11px]">Pour le Frontend &amp; Auth</span>
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+                  <input
+                    type="password"
+                    value={supabaseAnonKey}
+                    onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-950 text-white placeholder:text-zinc-600 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* 4. SUPABASE_SERVICE_ROLE_KEY */}
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                  <span>4. Supabase Service Role Key (Secret Backend)</span>
+                  <span className="text-zinc-500 text-[11px]">Pour les droits administratifs NestJS</span>
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+                  <input
+                    type="password"
+                    value={supabaseServiceKey}
+                    onChange={(e) => setSupabaseServiceKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.secret..."
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-950 text-white placeholder:text-zinc-600 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testingDb}
+                className="px-6 py-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25 disabled:opacity-60"
+              >
+                {testingDb ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                Tester la Connexion PostgreSQL
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveConnection}
+                disabled={testingDb}
+                className="px-6 py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 disabled:opacity-60"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Enregistrer Toutes les Clés
+              </button>
             </div>
 
             {/* Test result message */}
@@ -357,7 +478,7 @@ export default function AdminHomePage() {
                   <p className="font-bold">{testResult.message}</p>
                   {testResult.details?.postgresVersion && (
                     <p className="font-mono text-[11px] text-zinc-400 mt-1">
-                      Version : {testResult.details.postgresVersion}
+                      Version Serveur : {testResult.details.postgresVersion}
                     </p>
                   )}
                 </div>
