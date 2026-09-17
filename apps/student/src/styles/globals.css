@@ -2,14 +2,143 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-display: var(--font-display), -apple-system, BlinkMacSystemFont, sans-serif;
+    --bg-main: #f8fafc;
+    --text-main: #090e17;
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+    --primary-blue: #0052ff;
+    --sharp-cyan: #00b4d8;
+  }
+
+  .dark {
+    --bg-main: #070b12;
+    --text-main: #f1f5f9;
+    --card-bg: #0d131f;
+    --card-border: #1e293b;
+    --primary-blue: #0052ff;
+    --sharp-cyan: #38bdf8;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    background-color: #0b0f17;
-    color: #f3f4f6;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: var(--font-sans);
     min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
   }
 }
+
+/* Sharp Grid Pattern */
+.bg-sharp-grid {
+  background-size: 28px 28px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 82, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 82, 255, 0.04) 1px, transparent 1px);
+}
+
+.dark .bg-sharp-grid {
+  background-size: 28px 28px;
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+}
+
+/* Sticker Animations (Bouncy & Continuous) */
+@keyframes stickerBounceContinuous {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+  30% {
+    transform: translateY(-8px) rotate(-4deg) scale(1.05);
+  }
+  60% {
+    transform: translateY(-3px) rotate(3deg) scale(1.02);
+  }
+}
+
+@keyframes stickerWiggleContinuous {
+  0%, 100% {
+    transform: rotate(-4deg) scale(1);
+  }
+  50% {
+    transform: rotate(5deg) scale(1.08);
+  }
+}
+
+@keyframes stickerPop {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes headlineShimmerWave {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-sticker-bounce {
+  animation: stickerBounceContinuous 2.6s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+}
+
+.animate-sticker-wiggle {
+  animation: stickerWiggleContinuous 2.2s ease-in-out infinite;
+}
+
+.animate-sticker-pop {
+  animation: stickerPop 2s ease-in-out infinite;
+}
+
+.headline-animated-gradient {
+  background: linear-gradient(270deg, #0052ff 0%, #38bdf8 25%, #10b981 50%, #38bdf8 75%, #0052ff 100%);
+  background-size: 300% 300%;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: headlineShimmerWave 5s ease infinite;
+}
+
+/* Sharp Card Box */
+.sharp-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.sharp-card:hover {
+  border-color: #0052ff;
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 12s linear infinite;
+}
+

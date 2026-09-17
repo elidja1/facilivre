@@ -45,3 +45,7 @@ coverage/
 # Prisma & SQLite temporary files
 *.sqlite
 *.sqlite-journal
+
+# TypeScript build info
+*.tsbuildinfo
+
