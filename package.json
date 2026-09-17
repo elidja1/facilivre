@@ -17,7 +17,11 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "clean": "turbo run clean && rimraf node_modules"
+    "clean": "turbo run clean && rimraf node_modules",
+    "db:generate": "prisma generate --schema=apps/api/prisma/schema.prisma",
+    "db:push": "prisma db push --schema=apps/api/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=apps/api/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
     "prettier": "^3.5.3",

@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { IHealthStatus } from '@facilivre/types';
 import { apiClient } from '../lib/api';
 import { Button, Card, Badge, StatusIndicator } from '@facilivre/ui';
@@ -19,14 +21,41 @@ import {
   CheckCircle2,
   AlertTriangle,
   Lock,
-  Cpu
+  Cpu,
+  KeyRound,
+  ExternalLink,
+  Sparkles,
+  Zap,
+  Layers,
+  LogOut,
+  Terminal,
 } from 'lucide-react';
 
+interface SupabaseStatus {
+  status: 'connected' | 'disconnected' | 'awaiting_configuration';
+  latencyMs?: number;
+  databaseUrlMasked?: string;
+  tablesCount?: number;
+  postgresVersion?: string;
+  error?: string;
+}
+
 export default function AdminHomePage() {
+  const router = useRouter();
   const [health, setHealth] = useState<IHealthStatus | null>(null);
+  const [dbStatus, setDbStatus] = useState<SupabaseStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+
+  // Supabase Configuration Form state
+  const [customDbUrl, setCustomDbUrl] = useState('');
+  const [testingDb, setTestingDb] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success?: boolean;
+    message?: string;
+    details?: SupabaseStatus;
+  } | null>(null);
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -35,9 +64,19 @@ export default function AdminHomePage() {
       const data = await apiClient.getHealth();
       setHealth(data);
       setLastChecked(new Date());
+
+      // Fetch detailed DB status
+      try {
+        const dbRes = await apiClient.get<SupabaseStatus>('/api/v1/admin/database/status');
+        setDbStatus(dbRes);
+      } catch {
+        // fallback to health database payload
+        setDbStatus((data as any)?.database || null);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to connect to NestJS API');
+      setError(err.message || 'Impossible de contacter l\'API NestJS');
       setHealth(null);
+      setDbStatus(null);
     } finally {
       setLoading(false);
     }
@@ -45,74 +84,315 @@ export default function AdminHomePage() {
 
   useEffect(() => {
     fetchHealth();
-    const interval = setInterval(fetchHealth, 10000);
+    const interval = setInterval(fetchHealth, 12000);
     return () => clearInterval(interval);
   }, []);
 
+  const handleTestConnection = async () => {
+    if (!customDbUrl) {
+      alert('Veuillez saisir une URL de connexion PostgreSQL / Supabase.');
+      return;
+    }
+    setTestingDb(true);
+    setTestResult(null);
+    try {
+      const res = await apiClient.post<SupabaseStatus>('/api/v1/admin/database/test', {
+        databaseUrl: customDbUrl,
+      });
+      if (res.status === 'connected') {
+        setTestResult({
+          success: true,
+          message: `Connexion Supabase réussie en ${res.latencyMs}ms ! (${res.tablesCount} tables détectées)`,
+          details: res,
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: `Échec de connexion : ${res.error || 'Identifiants ou réseau incorrects'}`,
+          details: res,
+        });
+      }
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.message || 'Erreur lors du test de connexion.',
+      });
+    } finally {
+      setTestingDb(false);
+    }
+  };
+
+  const handleSaveConnection = async () => {
+    if (!customDbUrl) return;
+    setTestingDb(true);
+    try {
+      const res = await apiClient.post<any>('/api/v1/admin/database/save', {
+        databaseUrl: customDbUrl,
+      });
+      if (res.success) {
+        alert('Configuration Supabase enregistrée avec succès !');
+        fetchHealth();
+      } else {
+        alert(res.message || 'Impossible d\'enregistrer la configuration.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la sauvegarde.');
+    } finally {
+      setTestingDb(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('facilivre_admin_token');
+    localStorage.removeItem('facilivre_admin_user');
+    router.push('/login');
+  };
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.15),rgba(255,255,255,0))]">
-      {/* Header */}
-      <header className="border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[#06080d] text-slate-100 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.12),rgba(255,255,255,0))] font-sans pb-16">
+      
+      {/* ── HEADER ──────────────────────────────────────────────────────── */}
+      <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-              <ShieldAlert className="h-6 w-6 text-white" />
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <ShieldAlert className="h-5 w-5 text-white" />
             </div>
             <div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+              <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
                 FaciLivre
               </span>
-              <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <span className="ml-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
                 Super Admin
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-full text-xs">
+          <div className="flex items-center gap-3">
+            {/* Live API status */}
+            <div className="hidden sm:flex items-center gap-2 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-full text-xs">
               <StatusIndicator
                 status={loading ? 'pending' : error ? 'offline' : 'online'}
-                label={loading ? 'Verifying API' : error ? 'API Offline' : 'API Online'}
+                label={loading ? 'Vérification API' : error ? 'API Hors-ligne' : 'API NestJS Connectée'}
               />
             </div>
+
             <Button
               variant="outline"
               size="sm"
               onClick={fetchHealth}
               disabled={loading}
-              className="gap-2 text-xs"
+              className="gap-1.5 text-xs border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-              Sync Diagnostics
+              <span className="hidden sm:inline">Actualiser</span>
             </Button>
+
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-rose-400 hover:border-rose-500/30 transition-colors"
+              title="Déconnexion"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-10 space-y-10">
-        {/* Title */}
-        <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ── MAIN CONTENT ────────────────────────────────────────────────── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        
+        {/* Title and Session Info */}
+        <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Badge variant="warning" size="sm">Phase 0 Architecture Foundation</Badge>
-              <span className="text-xs text-zinc-500 font-mono">Port: 3001</span>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Badge variant="success" size="sm">Phase 1 • Infrastructure &amp; Base de Données</Badge>
+              <span className="text-xs text-zinc-500 font-mono">Port API: :4000</span>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">
-              Super Admin Control Center
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Panneau de Contrôle SuperAdmin
             </h1>
-            <p className="text-sm text-zinc-400 mt-1">
-              Platform administration, system telemetry, moderation operations, and RBAC governance.
+            <p className="text-xs sm:text-sm text-zinc-400 mt-1">
+              Supervision de l&apos;API NestJS, gestion de la base Supabase PostgreSQL et exécution des migrations.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono bg-zinc-900/60 border border-zinc-800 px-3 py-2 rounded-xl text-zinc-400">
-            <Lock className="h-3.5 w-3.5 text-indigo-400" />
-            <span>Role: SUPER_ADMIN</span>
+          <div className="flex items-center gap-2 text-xs font-mono bg-zinc-900/80 border border-zinc-800 px-3 py-2 rounded-xl text-zinc-300">
+            <Lock className="h-4 w-4 text-indigo-400 shrink-0" />
+            <span>Connecté : <strong className="text-white">superadmin</strong> (SUPER_ADMIN)</span>
           </div>
         </section>
 
-        {/* Diagnostics & API Communication Test */}
+        {/* ── SUPABASE & POSTGRESQL CONNECTION HUB ───────────────────────── */}
+        <section className="bg-zinc-900/70 border border-indigo-500/30 rounded-2xl p-6 sm:p-8 backdrop-blur-xl shadow-xl shadow-black/40 space-y-6 relative overflow-hidden">
+          {/* Subtle top glow */}
+          <div className="absolute top-0 right-0 w-80 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Section header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-inner">
+                <Database className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-white">
+                    Connexion Supabase &amp; Migrations PostgreSQL
+                  </h2>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Prisma ORM
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Connecte ton projet Supabase et teste la réactivité de la base en direct.
+                </p>
+              </div>
+            </div>
+
+            {/* Current status pill */}
+            <div className="flex items-center gap-2">
+              <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                dbStatus?.status === 'connected'
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : dbStatus?.status === 'awaiting_configuration'
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                  : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+              }`}>
+                <span className={`h-2 w-2 rounded-full ${
+                  dbStatus?.status === 'connected' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
+                }`} />
+                <span>
+                  {dbStatus?.status === 'connected'
+                    ? `Supabase Connecté (${dbStatus.latencyMs}ms)`
+                    : dbStatus?.status === 'awaiting_configuration'
+                    ? 'En attente de connexion'
+                    : 'Déconnecté'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Supabase Connection Details Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-zinc-950/70 border border-zinc-800 space-y-1">
+              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">État Supabase</span>
+              <div className="text-sm font-bold text-zinc-200 capitalize">
+                {dbStatus?.status === 'connected' ? '✅ En ligne & Prêt' : '⚠️ Configuration requise'}
+              </div>
+              <p className="text-[11px] text-zinc-500 font-mono truncate">
+                {dbStatus?.databaseUrlMasked || 'Non défini'}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-zinc-950/70 border border-zinc-800 space-y-1">
+              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tables dans la Base</span>
+              <div className="text-sm font-bold text-zinc-200">
+                {dbStatus?.tablesCount !== undefined ? `${dbStatus.tablesCount} tables` : '0 table'}
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                {dbStatus?.tablesCount ? 'Schéma synchronisé avec Prisma' : 'Prêt pour première migration'}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-zinc-950/70 border border-zinc-800 space-y-1">
+              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Moteur Base de Données</span>
+              <div className="text-sm font-bold text-indigo-400 truncate">
+                {dbStatus?.postgresVersion ? dbStatus.postgresVersion.slice(0, 25) + '…' : 'PostgreSQL 15 / Supabase'}
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                SSL / Transaction Mode activé
+              </p>
+            </div>
+          </div>
+
+          {/* Supabase Input Form */}
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                <span>URL de Connexion PostgreSQL Supabase (DATABASE_URL) :</span>
+                <span className="text-zinc-500 font-normal">Format: postgresql://postgres.[ref]:[mdp]@aws-0-[region].pooler.supabase.com:6543/postgres</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="password"
+                  value={customDbUrl}
+                  onChange={(e) => setCustomDbUrl(e.target.value)}
+                  placeholder="postgresql://postgres.your-project:your-password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+                  className="flex-1 px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white placeholder:text-zinc-600 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testingDb}
+                  className="px-5 py-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-60 shrink-0"
+                >
+                  {testingDb ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                  Tester la Connexion
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveConnection}
+                  disabled={testingDb}
+                  className="px-5 py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-60 shrink-0"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+
+            {/* Test result message */}
+            {testResult && (
+              <div className={`p-4 rounded-xl text-xs flex items-start gap-3 border ${
+                testResult.success
+                  ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
+              }`}>
+                {testResult.success ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <p className="font-bold">{testResult.message}</p>
+                  {testResult.details?.postgresVersion && (
+                    <p className="font-mono text-[11px] text-zinc-400 mt-1">
+                      Version : {testResult.details.postgresVersion}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Migration CLI Cheat Sheet */}
+          <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-4 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-300">
+              <Terminal className="h-4 w-4 text-indigo-400" />
+              <span>Commandes de Migration Automatique (Monorepo FaciLivre) :</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+              <div className="bg-zinc-900/90 p-2.5 rounded-lg border border-zinc-800/80 flex items-center justify-between">
+                <span className="text-zinc-300">npm run db:push</span>
+                <span className="text-zinc-500 text-[10px]">Appliquer le schéma directement</span>
+              </div>
+              <div className="bg-zinc-900/90 p-2.5 rounded-lg border border-zinc-800/80 flex items-center justify-between">
+                <span className="text-zinc-300">npm run db:migrate</span>
+                <span className="text-zinc-500 text-[10px]">Créer une migration versionnée</span>
+              </div>
+              <div className="bg-zinc-900/90 p-2.5 rounded-lg border border-zinc-800/80 flex items-center justify-between">
+                <span className="text-zinc-300">npm run db:studio</span>
+                <span className="text-zinc-500 text-[10px]">Visualiseur Prisma Studio</span>
+              </div>
+              <div className="bg-zinc-900/90 p-2.5 rounded-lg border border-zinc-800/80 flex items-center justify-between">
+                <span className="text-zinc-300">npm run db:generate</span>
+                <span className="text-zinc-500 text-[10px]">Régénérer les types TypeScript</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── DIAGNOSTICS & SYSTEM TELEMETRY ──────────────────────────────── */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card variant="glass" className="lg:col-span-2 border-zinc-800/80 bg-zinc-900/40 p-6 space-y-6">
             <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
@@ -121,19 +401,19 @@ export default function AdminHomePage() {
                   <Server className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-semibold text-white">API Core Connection Telemetry</h2>
-                  <p className="text-xs text-zinc-400">Next.js Super Admin → NestJS Backend (:4000)</p>
+                  <h2 className="text-base font-bold text-white">Télémétrie API NestJS</h2>
+                  <p className="text-xs text-zinc-400">Communication Next.js SuperAdmin → NestJS Backend (:4000)</p>
                 </div>
               </div>
               <Badge variant={error ? 'error' : health?.status === 'ok' ? 'success' : 'warning'}>
-                {error ? 'Unreachable' : health?.status?.toUpperCase() || 'Probing'}
+                {error ? 'Déconnecté' : health?.status?.toUpperCase() || 'Vérification'}
               </Badge>
             </div>
 
             {loading && !health && !error && (
               <div className="py-8 flex flex-col items-center justify-center text-zinc-400 text-sm gap-2">
                 <RefreshCw className="h-6 w-6 animate-spin text-indigo-500" />
-                <span>Interrogating NestJS endpoint at http://localhost:4000/health...</span>
+                <span>Interrogation du backend à http://localhost:4000/health…</span>
               </div>
             )}
 
@@ -141,9 +421,9 @@ export default function AdminHomePage() {
               <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-rose-300">Backend Communication Interrupted</h3>
+                  <h3 className="text-sm font-semibold text-rose-300">Communication API Interrompue</h3>
                   <p className="text-xs text-rose-400/90">{error}</p>
-                  <p className="text-xs text-zinc-400 mt-2">Ensure NestJS API daemon is active on port 4000.</p>
+                  <p className="text-xs text-zinc-400 mt-2">Vérifiez que le serveur NestJS tourne sur le port 4000.</p>
                 </div>
               </div>
             )}
@@ -151,27 +431,27 @@ export default function AdminHomePage() {
             {health && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1">
-                  <span className="text-xs text-zinc-500">API Health State</span>
+                  <span className="text-xs text-zinc-500">Santé API</span>
                   <div className="text-sm font-semibold text-zinc-200 capitalize">
-                    {health.status} ({health.version})
+                    {health.status} (v{health.version})
                   </div>
                   <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Communication Verified
+                    <CheckCircle2 className="h-3 w-3" /> Communication OK
                   </span>
                 </div>
 
                 <div className="p-4 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1">
-                  <span className="text-xs text-zinc-500">PostgreSQL Status</span>
+                  <span className="text-xs text-zinc-500">Base de Données</span>
                   <div className="text-sm font-semibold text-zinc-200 capitalize">
-                    {health.database.status}
+                    {health.database?.status || 'Active'}
                   </div>
                   <span className="text-[11px] text-zinc-400">
-                    {health.database.latencyMs !== undefined ? `${health.database.latencyMs}ms latency` : 'Prisma client ready'}
+                    {health.database?.latencyMs !== undefined ? `${health.database.latencyMs}ms latence` : 'Prisma Client prêt'}
                   </span>
                 </div>
 
                 <div className="p-4 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1">
-                  <span className="text-xs text-zinc-500">System Uptime</span>
+                  <span className="text-xs text-zinc-500">Uptime Serveur</span>
                   <div className="text-sm font-semibold text-zinc-200">{health.uptime}s</div>
                   <span className="text-[11px] text-zinc-400">Env: {health.environment}</span>
                 </div>
@@ -179,65 +459,66 @@ export default function AdminHomePage() {
             )}
 
             <div className="text-xs text-zinc-500 flex items-center justify-between pt-2 border-t border-zinc-800/60">
-              <span>Client package: <code className="text-zinc-300">@facilivre/api-client</code></span>
-              <span>Last Probe: {lastChecked ? lastChecked.toLocaleTimeString() : 'Pending'}</span>
+              <span>Client HTTP : <code className="text-zinc-300">@facilivre/api-client</code></span>
+              <span>Dernier contrôle : {lastChecked ? lastChecked.toLocaleTimeString() : 'En attente'}</span>
             </div>
           </Card>
 
-          {/* Governance & Monorepo Status */}
+          {/* Student Portal & Topology Status */}
           <Card variant="default" className="border-zinc-800/80 bg-zinc-900/40 p-6 space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-zinc-200 font-semibold text-sm">
+              <div className="flex items-center gap-2 text-zinc-200 font-bold text-sm">
                 <Cpu className="h-4 w-4 text-indigo-400" />
-                <span>Monorepo Topology</span>
+                <span>Portails &amp; Déploiement</span>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Super Admin executes in isolated Next.js space without direct PostgreSQL bindings, maintaining strict backend-first data governance.
+                Le portail étudiant pointe vers l&apos;API de production Vercel / Cloud.
               </p>
 
-              <div className="space-y-2 pt-2 text-xs">
-                <div className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
-                  <span className="text-zinc-400">Apps Running</span>
-                  <span className="font-mono text-zinc-200">Student, Admin, API</span>
+              <div className="space-y-2 pt-2 text-xs font-mono">
+                <div className="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800 space-y-1">
+                  <span className="text-zinc-500 text-[10px] uppercase font-bold block">Portail Étudiant :</span>
+                  <span className="text-sky-400 text-[11px] break-all">http://localhost:3000</span>
                 </div>
-                <div className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
-                  <span className="text-zinc-400">Shared Packages</span>
-                  <span className="font-mono text-zinc-200">types, ui, auth, client</span>
-                </div>
-                <div className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
-                  <span className="text-zinc-400">Database Engine</span>
-                  <span className="font-mono text-indigo-400">PostgreSQL (Prisma)</span>
+                <div className="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800 space-y-1">
+                  <span className="text-zinc-500 text-[10px] uppercase font-bold block">API Production Vercel :</span>
+                  <span className="text-emerald-400 text-[11px] break-all">https://facilivre-ad7je7o65-makouelijah2-1845.vercel.app/</span>
                 </div>
               </div>
             </div>
 
-            <Button variant="secondary" size="sm" className="w-full text-xs">
-              Super Admin Gateway Ready
-            </Button>
+            <Link
+              href="http://localhost:3000"
+              target="_blank"
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-center border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-all flex items-center justify-center gap-1.5"
+            >
+              <span>Ouvrir FaciLivre Étudiant</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
           </Card>
         </section>
 
-        {/* Admin Management Surfaces */}
+        {/* ── ADMIN MANAGEMENT MODULES ──────────────────────────────────── */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-zinc-200">Management Domains (Architectural Routing)</h2>
-            <span className="text-xs text-zinc-500">Super Admin Modules</span>
+            <h2 className="text-lg font-bold text-zinc-200">Modules d&apos;Administration FaciLivre</h2>
+            <span className="text-xs text-zinc-500">Prêts pour Phase 1</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
-              { icon: Users, title: 'Users & Creators', desc: 'Manage student, teacher & creator accounts', tag: 'Identity' },
-              { icon: Film, title: 'Content Governance', desc: 'Videos, posts, comments & metadata inspection', tag: 'Content' },
-              { icon: FileCheck2, title: 'Moderation Queue', desc: 'Review user reports & automated flags', tag: 'Safety' },
-              { icon: BookOpen, title: 'Curriculum & Subjects', desc: 'Academic taxonomy, levels & categories', tag: 'Academics' },
-              { icon: BarChart3, title: 'Platform Analytics', desc: 'Engagement metrics & system throughput', tag: 'Analytics' },
-              { icon: ScrollText, title: 'Audit Logs', desc: 'Immutable trail of administrative actions', tag: 'Compliance' },
-              { icon: Sliders, title: 'Platform Settings', desc: 'Feature flags, policies & rate limits', tag: 'Config' },
-              { icon: Lock, title: 'RBAC & Permissions', desc: 'Roles, capability grants & session policies', tag: 'Security' },
+              { icon: Users, title: 'Utilisateurs & Profils', desc: 'Gestion des comptes étudiants, créateurs et professeurs.', tag: 'Identité' },
+              { icon: Film, title: 'Scroll & Apprends', desc: 'Gestion des micro-cours vidéo, posts et commentaires.', tag: 'Contenu' },
+              { icon: FileCheck2, title: 'Modération & Signalements', desc: 'Validation des contenus communautaires et sécurité.', tag: 'Sécurité' },
+              { icon: BookOpen, title: 'Programmes & Matières', desc: 'Taxonomie académique (Bénin, Francophone, Anglophone).', tag: 'Pédagogie' },
+              { icon: BarChart3, title: 'Statistiques & Engagement', desc: 'Métriques d\'utilisation, taux de réussite aux quiz.', tag: 'Analyses' },
+              { icon: ScrollText, title: 'Journaux d\'Audit', desc: 'Historique des actions administratives.', tag: 'Conformité' },
+              { icon: Sliders, title: 'Paramètres Plateforme', desc: 'Configuration des limites et modes d\'apprentissage.', tag: 'Config' },
+              { icon: Lock, title: 'Rôles & Permissions (RBAC)', desc: 'Attribution des privilèges administrateurs.', tag: 'Accès' },
             ].map((module, idx) => (
               <div
                 key={idx}
-                className="p-5 rounded-2xl bg-zinc-900/30 border border-zinc-800/60 hover:border-zinc-700/80 transition-all space-y-3 group"
+                className="p-5 rounded-2xl bg-zinc-900/30 border border-zinc-800/60 hover:border-zinc-700/80 transition-all space-y-3 group cursor-pointer"
               >
                 <div className="flex items-center justify-between">
                   <div className="p-2 rounded-xl bg-zinc-800 text-zinc-300 group-hover:text-indigo-400 group-hover:bg-indigo-500/10 transition-colors">
