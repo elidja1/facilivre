@@ -14,25 +14,39 @@ async function bootstrap() {
   const port = configService.get<number>('port') || 4000;
   const host = configService.get<string>('host') || '0.0.0.0';
   const prefix = configService.get<string>('prefix') || 'api/v1';
+  const nodeEnv = configService.get<string>('nodeEnv') || 'development';
+  const isProduction = nodeEnv === 'production';
+
+  // CORS: loaded from configuration.ts which merges env var + hardcoded list
   const corsOrigins = configService.get<string[]>('corsOrigins') || [
     'http://localhost:3000',
     'http://localhost:3001',
+    'https://student-omega-gilt.vercel.app',
+    'https://facilivre-admin.vercel.app',
   ];
 
-  // Enable CORS
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || corsOrigins.includes(origin) || corsOrigins.includes('*')) {
-        callback(null, true);
-      } else {
-        callback(null, true); // Permissive in development
+      // Allow requests with no origin (server-to-server, Swagger, mobile)
+      if (!origin) return callback(null, true);
+
+      if (corsOrigins.includes(origin)) {
+        return callback(null, true);
       }
+
+      // In development, allow all. In production, reject unknown origins.
+      if (!isProduction) {
+        return callback(null, true);
+      }
+
+      logger.warn(`CORS blocked request from origin: ${origin}`);
+      return callback(new Error(`Origin ${origin} not allowed by CORS policy`), false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
 
-  // Global Prefix for API endpoints with health check accessible at root /health as well
+  // Global prefix (health check accessible at root /health)
   app.setGlobalPrefix(prefix, {
     exclude: ['health'],
   });
@@ -48,21 +62,24 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  // Swagger Documentation
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('FaciLivre API')
-    .setDescription('The FaciLivre modular backend API')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
+  // Swagger (only in development)
+  if (!isProduction) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('FaciLivre API')
+      .setDescription('The FaciLivre modular backend API')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+    logger.log(`?? Swagger Documentation: http://localhost:${port}/api/docs`);
+  }
 
   await app.listen(port, host);
-  logger.log(`🚀 FaciLivre API is running at: http://localhost:${port}`);
-  logger.log(`🩺 Health check endpoint: http://localhost:${port}/health`);
-  logger.log(`📚 Swagger Documentation: http://localhost:${port}/api/docs`);
+  logger.log(`?? FaciLivre API running [${nodeEnv}] on port ${port}`);
+  logger.log(`?? Health: http://localhost:${port}/health`);
+  logger.log(`?? CORS allowed origins: ${corsOrigins.join(', ')}`);
 }
 
 bootstrap();

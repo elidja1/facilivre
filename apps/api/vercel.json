@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "builds": [
+    {
+      "src": "dist/main.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "dist/main.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "API_PORT": "4000",
+    "API_HOST": "0.0.0.0",
+    "API_PREFIX": "api/v1",
+    "CORS_ORIGINS": "https://student-omega-gilt.vercel.app,https://facilivre-admin.vercel.app"
+  }
+}
